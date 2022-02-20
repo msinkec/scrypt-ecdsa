@@ -1,0 +1,278 @@
+library ECDSA {
+
+    static const int S = 33;    // 32 bytes plus sign byte
+    static const bytes G = b'0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798';
+
+    static const int n = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
+    static const bytes bn = b'414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff';  // LE
+
+    static const int P = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f;
+    static const bytes bP = b'2ffcfffffeffffffffffffffffffffffffffffffffffffffffffffffffffffff';  // LE
+
+
+    static function normalize(int k, int modulus) : int {
+        k = k % modulus;
+        if (k < 0) {
+            k = k + modulus;
+        }
+        return k;
+    }
+  
+    static function modInverseEGCD(int x, int n) : int {
+        x = ECDSA.normalize(x, n);
+
+        int t = 0;
+        int newt = 1;
+        int r = n;
+        int newr = x;
+
+        int quotient = 0;
+        int tmp = 0;
+
+        //loop (386) {
+        loop (368) {
+            if (newr != 0) {
+                quotient = r / newr;
+                
+                tmp = newt;
+                newt = t - quotient * newt;
+                t = tmp;
+                
+                tmp = newr;
+                newr = r - quotient * newr;
+                r = tmp;
+            }
+        }
+
+        if (t < 0)
+            t = t + n;
+        
+        return t;
+    }
+
+    static function doublePoint(bytes p) : bytes {
+        bytes pxb = p[0:ECDSA.S];
+        bytes pyb = p[ECDSA.S:len(p)];
+        
+        int px = unpack(pxb);
+        int py = unpack(pyb);
+
+        int lambda = (3 * px * px) * ECDSA.modInverseEGCD(2 * py, ECDSA.P);
+
+        int rx = ECDSA.normalize(lambda * lambda - 2 * px, ECDSA.P);
+        int ry = ECDSA.normalize(lambda * (px - rx) - py, ECDSA.P);
+
+        return num2bin(rx, ECDSA.S) + num2bin(ry, ECDSA.S);
+    }
+
+    //static function doublePoint(bytes p) : bytes {
+    //    int A = 0;
+    //    
+    //    bytes pxb = p[0:ECDSA.S];
+    //    bytes pyb = p[ECDSA.S:len(p)];
+    //    
+    //    int px = unpack(pxb);
+    //    int py = unpack(pyb);
+
+    //    bytes ret = b'';
+
+    //    // special case: infinity point
+    //    if (px == 0 && py == 0) {
+    //        ret = num2bin(0, ECDSA.S) + num2bin(0, ECDSA.S);
+    //    } else {
+    //        int lambda = (3 * px * px + A) * ECDSA.modInverseEGCD(2 * py, ECDSA.P);
+
+    //        int rx = ECDSA.normalize(lambda * lambda - 2 * px, ECDSA.P);
+    //        int ry = ECDSA.normalize(lambda * (px - rx) - py, ECDSA.P);
+
+    //        ret = num2bin(rx, ECDSA.S) + num2bin(ry, ECDSA.S);
+    //    }
+
+    //    return ret;
+    //}
+
+    static function addPoints(bytes p, bytes q) : bytes {
+        bytes pxb = p[0:ECDSA.S];
+        bytes pyb = p[ECDSA.S:];
+        bytes qxb = q[0:ECDSA.S];
+        bytes qyb = q[ECDSA.S:];
+
+        int px = unpack(pxb);
+        int py = unpack(pyb);
+
+        int qx = unpack(qxb);
+        int qy = unpack(qyb);
+
+        bytes ret = b'';
+
+        if (px == 0 && py == 0) {
+            // if P == inf -> P + Q = Q
+            ret = q;
+        } else if (qx == 0 && qy == 0) {
+            // if Q == inf -> P + Q = P
+            ret = p;
+        } else {
+            int lambda = 0;
+            if (px == qx && py == qy) {
+                lambda = (3 * px * px) * ECDSA.modInverseEGCD(2 * py, ECDSA.P);
+            } else {
+                lambda = (qy - py) * ECDSA.modInverseEGCD(qx - px, ECDSA.P);
+            }
+
+            int rx = ECDSA.normalize(lambda * lambda - px - qx, ECDSA.P);
+            int ry = ECDSA.normalize(lambda * (px - rx) - py, ECDSA.P);
+
+            ret = num2bin(rx, ECDSA.S) + num2bin(ry, ECDSA.S);
+        }
+
+        return ret;
+    }
+
+    //static function addPoints(bytes p, bytes q) : bytes {
+    //    bytes pxb = p[0:ECDSA.S];
+    //    bytes pyb = p[ECDSA.S:];
+    //    bytes qxb = q[0:ECDSA.S];
+    //    bytes qyb = q[ECDSA.S:];
+
+    //    int px = unpack(pxb);
+    //    int py = unpack(pyb);
+
+    //    int qx = unpack(qxb);
+    //    int qy = unpack(qyb);
+
+    //    bytes ret = b'';
+
+    //    // special case: infinity point
+    //    if (px == 0 && py == 0) {
+    //        ret = q;
+    //    } else if (qx == 0 && qy == 0) {
+    //        ret = p;
+    //    } else if (px == qx && py == qy) {
+    //        // same point
+    //        ret = ECDSA.doublePoint(p);
+    //    } else {
+    //        int xdiff = qx - px;
+    //        int lambda = (qy - py) * ECDSA.modInverseEGCD(xdiff, ECDSA.P);
+
+    //        int rx = ECDSA.normalize(lambda * lambda - px - qx, ECDSA.P);
+    //        int ry = ECDSA.normalize(lambda * (px - rx) - py, ECDSA.P);
+
+    //        ret = num2bin(rx, ECDSA.S) + num2bin(ry, ECDSA.S);
+    //    }
+
+    //    return ret;
+    //}
+
+    static function multByScalar(bytes p, int m) : bytes {
+        // Double and add method.
+        bytes n = p;
+        bytes q = num2bin(0, ECDSA.S) + num2bin(0, ECDSA.S);
+
+        bytes mb =   reverseBytes(num2bin(m, ECDSA.S), 33);
+        bytes mask = reverseBytes(num2bin(1, ECDSA.S), 33);
+        bytes zero = reverseBytes(num2bin(0, ECDSA.S), 33);
+
+        // lowest bit to highest
+        loop (256) : i {
+            if ((mb & (mask << i - 1)) != zero) {
+                q = ECDSA.addPoints(q, n);
+            }
+
+            n = ECDSA.doublePoint(n);
+        }
+
+        return q;
+    }
+
+    //static function multByScalar(bytes p, int m) : bytes {
+    //    // Double and add method.
+    //    bytes n = p;
+    //    bytes q = num2bin(0, ECDSA.S) + num2bin(0, ECDSA.S);
+
+    //    bytes mb =   reverseBytes(num2bin(m, ECDSA.S), 33);
+    //    bytes mask = reverseBytes(num2bin(1, ECDSA.S), 33);
+    //    bytes zero = reverseBytes(num2bin(0, ECDSA.S), 33);
+
+    //    int i = 0;
+
+    //    // lowest bit to highest
+    //    loop (256) {
+    //        if ((mb & (mask << i)) != zero) {
+    //            q = ECDSA.addPoints(q, n);
+    //        }
+
+    //        n = ECDSA.doublePoint(n);
+    //        i = i + 1;
+    //    }
+
+    //    return q;
+    //}
+
+    static function verifySig(bytes m, bytes sig, bytes pubKey) : bool {
+        // Hash message.
+        Sha256 hash = hash256(m);
+        int hashInt = unpack(hash);
+
+        // Extract signature components. Assuming DER format.
+        int rLen = unpack(sig[3:4]);
+        int sLen = unpack(sig[4+rLen:5+rLen]);
+        int r = unpack(sig[4:4+rLen]);
+        int s = unpack(sig[5+rLen:5+rLen+sLen]);
+
+        require(r >= 1 && r < ECDSA.n && s >= 1 && s < ECDSA.n);
+
+        int sInv = ECDSA.modInverseEGCD(s, ECDSA.n);
+        int u1 = ECDSA.normalize(hashInt * sInv, ECDSA.n);
+        int u2 = ECDSA.normalize(r * sInv, ECDSA.n);
+
+        bytes U1 = ECDSA.multByScalar(ECDSA.G, u1);
+        bytes U2 = ECDSA.multByScalar(ECDSA.G, u2);
+        bytes X = ECDSA.addPoints(U1, U2);
+
+        // Extract x coordinate of result.
+        bytes Xxb = X[:ECDSA.S];
+        int Xx = unpack(Xxb);
+
+        return r == Xx;
+    }
+
+
+    // TODO: sign()
+
+}
+
+contract TestCheckSig {
+
+    //public function verify(bytes m, Sig sig, bytes pubKey) {
+    //    require(ECDSA.verifySig(m, sig, pubKey) == true);
+    //}
+
+    public function testAdd(
+                    int ax, int ay, 
+                    int bx, int by,
+                    int sumx, int sumy) {
+       bytes a = num2bin(ax, ECDSA.S) + num2bin(ay, ECDSA.S);
+       bytes b = num2bin(bx, ECDSA.S) + num2bin(by, ECDSA.S);
+       bytes sum = num2bin(sumx, ECDSA.S) + num2bin(sumy, ECDSA.S);
+
+       bytes res = ECDSA.addPoints(a, b);
+       require(res == sum);
+    }
+
+    public function testDouble(
+                    int ax, int ay, 
+                    int dx, int dy) {
+       bytes a = num2bin(ax, ECDSA.S) + num2bin(ay, ECDSA.S);
+       bytes d = num2bin(dx, ECDSA.S) + num2bin(dy, ECDSA.S);
+
+       bytes res = ECDSA.doublePoint(a);
+       require(res == d);
+    }
+
+    //public function testMultByScalar(int scalar, bytes pubKey) {
+    //   bytes res = ECDSA.multByScalar(pubKey, scalar);
+    //   require(true == true);
+    //}
+
+
+}
