@@ -73,6 +73,7 @@ if __name__ == '__main__':
 
     # Point addition with many random keys
     for i in range(500):
+        print("Adding rand key, iter. {}".format(i))
         rand_key_priv = PrivateKey.from_random()
         rand_to_add = PrivateKey.from_random()
         rand_point_sum = rand_key_priv.public_key.add(rand_to_add._secret)
@@ -83,6 +84,19 @@ if __name__ == '__main__':
 
         assert testCheckSig.testAdd(
                     rax, ray, rbx, rby, rsumx, rsumy
+                ).verify()
+
+    # Point double with many random keys
+    for i in range(500):
+        print("Doubling rand key, iter. {}".format(i))
+        rand_key_priv = PrivateKey.from_random()
+        rand_point_sum = rand_key_priv.public_key.add(rand_key_priv._secret)
+
+        rax, ray = rand_key_priv.public_key.to_point()
+        rsumx, rsumy = rand_point_sum.to_point()
+
+        assert testCheckSig.testDouble(
+                    rax, ray, rsumx, rsumy
                 ).verify()
 
 
