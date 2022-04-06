@@ -65,7 +65,7 @@ library ECDSA {
     }
 
     static function doublePoint(Point p) : Point {
-        int lambda = (3 * p.x * p.x) * modInverseEGCD(2 * p.y, P);
+        int lambda = (3 * p.x * p.x + a) * modInverseEGCD(2 * p.y, P);
 
         int rx = modReduce(lambda * lambda - 2 * p.x, P);
         int ry = modReduce(lambda * (p.x - rx) - p.y, P);
