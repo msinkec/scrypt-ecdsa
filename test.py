@@ -1,4 +1,5 @@
 import json
+import os
 
 from bitcoinx import PrivateKey, double_sha256, Signature
 from scryptlib import (
@@ -7,31 +8,59 @@ from scryptlib import (
 
 
 if __name__ == '__main__':
-    key_priv = PrivateKey.from_arbitrary_bytes(b'test123')
+    key_priv = PrivateKey.from_random()
+    #key_priv = PrivateKey.from_arbitrary_bytes(b'test123')
     key_pub = key_priv.public_key
 
     # Point addition
     to_add = PrivateKey.from_arbitrary_bytes(b'bla')
     point_sum = key_pub.add(to_add._secret)
-    assert point_sum.to_hex(compressed=True) == '0210665ad464f2b7a382841d7f764044877db2c988240149a2b1c0e330df5c6f26'
+    #assert point_sum.to_hex(compressed=True) == '0210665ad464f2b7a382841d7f764044877db2c988240149a2b1c0e330df5c6f26'
 
     # Point doubling
     point_doubled = key_pub.add(key_priv._secret)
-    assert point_doubled.to_hex(compressed=True) == '02d955f9f2eb090bcda5f0f158d569880dbe307cfac6a982b674116f7cf013b875'
+    #assert point_doubled.to_hex(compressed=True) == '02d955f9f2eb090bcda5f0f158d569880dbe307cfac6a982b674116f7cf013b875'
 
     # Scalar multiplication
     scalar = PrivateKey.from_arbitrary_bytes(b'123test123')
     point_scaled = key_pub.multiply(scalar._secret)
-    assert point_scaled.to_hex(compressed=True) == '022253ec8426dbfe9e844166aa630eb2b654eaac6f3d5d0cfdd90d475ccc026c24'
+    #assert point_scaled.to_hex(compressed=True) == '022253ec8426dbfe9e844166aa630eb2b654eaac6f3d5d0cfdd90d475ccc026c24'
 
     # Signature verification
     msg = 'Hello, World!'
     msg_bytes = str.encode(msg, encoding='ASCII')
     sig = key_priv.sign(msg_bytes, hasher=double_sha256)
-    assert key_pub.verify_der_signature(sig, msg_bytes, hasher=double_sha256)
+    #assert key_pub.verify_der_signature(sig, msg_bytes, hasher=double_sha256)
     
     r = Signature.r_value(sig)
     s = Signature.s_value(sig)
+
+    ## TODO: remove
+    #from bitcoinx import le_bytes_to_int
+
+    #def modreduce(x, n):
+    #    res = x % n
+    #    if res < 0:
+    #        return res + n
+    #    return res
+
+    #n = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141
+    #p = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F
+
+    #msg_hash = double_sha256(msg_bytes)[::-1] # TODO: try reversing
+    #msg_hash_int = le_bytes_to_int(msg_hash)
+
+    #assert r >= 1 and r < n and s >= 1 and s < n
+
+    #s_inv = pow(s, -1, n)
+    #u1 = PrivateKey.from_int(modreduce(msg_hash_int * s_inv, n))
+    #u2 = PrivateKey.from_int(modreduce(r * s_inv, n))
+    #U2 = key_pub.multiply(u2._secret)
+    #
+    #X = U2.add(u1._secret)
+    #Xx, Xy = X.to_point()
+    #assert r == Xx
+    ###
 
 
     ############################
@@ -49,7 +78,7 @@ if __name__ == '__main__':
 
     type_classes = build_type_classes(desc)
     Point = type_classes['Point']
-    Signature = type_classes['Signature']
+    Signature_struct = type_classes['Signature']
 
     TestCheckSig = build_contract_class(desc)
     testCheckSig = TestCheckSig()
@@ -111,7 +140,7 @@ if __name__ == '__main__':
     # Signature verification
     assert testCheckSig.testVerifySig(
                 msg_bytes,
-                Signature({ 'r': r, 's': s}), 
+                Signature_struct({ 'r': r, 's': s}), 
                 Point({ 'x': ax, 'y': ay}), 
             ).verify()
 
@@ -162,6 +191,26 @@ if __name__ == '__main__':
     #                scalar.to_int(), 
     #                Point({ 'x': prodx, 'y': prody}), 
     #            ).verify()
-        
 
+    # Many random messages signed with random keys
+    #for i in range(100):
+    #    print("Rand checksig, iter. {}".format(i))
+    #    rand_key_priv = PrivateKey.from_random()
+    #    rand_key_pub = rand_key_priv.public_key
 
+    #    msg_bytes = os.urandom(i)
+    #    #msg = 'Hello, World!'
+    #    #msg_bytes = str.encode(msg, encoding='ASCII')
+    #    print(msg_bytes.hex())
+    #    sig = rand_key_priv.sign(msg_bytes, hasher=double_sha256)
+    #    
+    #    r = Signature.r_value(sig)
+    #    s = Signature.s_value(sig)
+
+    #    ax, ay = rand_key_pub.to_point()
+
+    #    assert testCheckSig.testVerifySig(
+    #                msg_bytes,
+    #                Signature_struct({ 'r': r, 's': s}), 
+    #                Point({ 'x': ax, 'y': ay}), 
+    #        ).verify()
